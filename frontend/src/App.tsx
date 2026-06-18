@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PassportCard, type PassportState } from "./components/PassportCard";
-import { Badge, Button, Card, Mono, cx } from "./components/ui";
+import { Badge, Button, Card, Mono, cx } from "./components/primitives";
 import {
   ArrowRight,
   Check,
@@ -15,6 +15,17 @@ import {
   ShieldCheck,
   X,
 } from "./components/icons";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   authorizePayment,
   CONTRACTS,
@@ -62,8 +73,10 @@ export default function App() {
       setMinted(m);
       addLog(`+ proof generated in ${m.provingMs} ms · off-chain verify: ${m.offChainValid}`);
       addLog(`  agent #${m.agentId} · nullifier ${m.nullifierHash.slice(0, 20)}…`);
+      toast.success("Proof generated", { description: `Agent #${m.agentId} · ${m.provingMs} ms, fully client-side` });
     } catch (e) {
       addLog(`! proving failed: ${String((e as Error).message)}`);
+      toast.error("Proving failed", { description: String((e as Error).message) });
     } finally {
       setProving(false);
     }
@@ -76,6 +89,8 @@ export default function App() {
     const r = await verifyOnChain(minted);
     setVerifyRes(r);
     addLog(r.ok ? `+ ON-CHAIN VERIFIED · attestation minted (ledger ${r.attestation?.ledger})` : `! rejected: ${r.error}`);
+    if (r.ok) toast.success("Verified on-chain", { description: `BN254 pairing passed · ledger ${r.attestation?.ledger}` });
+    else toast.error("Verification rejected", { description: r.error });
     setVerifying(false);
   }
 
@@ -86,6 +101,8 @@ export default function App() {
     const r = await authorizePayment(minted.agentId, toStroops(amount));
     setPayRes({ authorized: r.authorized, reason: r.reason, amount });
     addLog(r.authorized ? `+ APPROVED — ${r.reason}` : `x DENIED — ${r.reason}`);
+    if (r.authorized) toast.success(`Payment authorized · ${amount} XLM`, { description: r.reason });
+    else toast.error(`Payment denied · ${amount} XLM`, { description: r.reason });
     setPaying(false);
   }
 
@@ -95,12 +112,14 @@ export default function App() {
     const r = await replaySpentProof();
     setReplay(r);
     addLog(r.ok ? `! unexpectedly accepted` : `+ chain rejected replay — ${r.error}`);
+    if (!r.ok) toast.success("Replay blocked on-chain", { description: r.error });
     setReplaying(false);
   }
 
   return (
-    <div className="min-h-screen">
-      <Header />
+    <TooltipProvider delayDuration={150}>
+      <div className="min-h-screen">
+        <Header />
 
       <main className="mx-auto max-w-[1180px] px-6 pb-28">
         <div className="grid gap-x-12 gap-y-10 pt-12 lg:grid-cols-[1fr_minmax(380px,430px)]">
@@ -143,8 +162,10 @@ export default function App() {
 
         <Threats />
       </main>
-      <Footer />
-    </div>
+        <Footer />
+        <Toaster position="bottom-right" />
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -162,14 +183,19 @@ function Header() {
           </span>
         </div>
         <nav className="flex items-center gap-1.5 text-sm">
-          <a
-            href={EXPLORER(CONTRACTS.validator)}
-            target="_blank"
-            className="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-xs text-muted transition-colors hover:bg-white/5 hover:text-fg sm:inline-flex"
-          >
-            {CONTRACTS.validator.slice(0, 4)}…{CONTRACTS.validator.slice(-4)}
-            <ExternalLink width={13} height={13} />
-          </a>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={EXPLORER(CONTRACTS.validator)}
+                target="_blank"
+                className="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-xs text-muted transition-colors hover:bg-white/5 hover:text-fg sm:inline-flex"
+              >
+                {CONTRACTS.validator.slice(0, 4)}…{CONTRACTS.validator.slice(-4)}
+                <ExternalLink width={13} height={13} />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent className="font-mono text-xs">AgentPassportValidator · open in Stellar Expert</TooltipContent>
+          </Tooltip>
           <a
             href={REPO}
             target="_blank"
@@ -348,11 +374,67 @@ function StepMint({
                 <Mono label="π.b" value={minted.proofHex.b} />
                 <Mono label="π.c" value={minted.proofHex.c} />
               </div>
+              <div className="mt-3 border-t border-white/[0.06] pt-3">
+                <ProofDialog minted={minted} />
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </StepShell>
+  );
+}
+
+function ProofDialog({ minted }: { minted: MintedProof }) {
+  const inputs: [string, string][] = [
+    ["registryRoot", minted.registryRoot],
+    ["nullifierHash", minted.nullifierHash],
+    ["agentId", minted.agentId],
+    ["spendCap", minted.spendCap],
+  ];
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="inline-flex items-center gap-1.5 font-mono text-[11px] text-faint transition-colors hover:text-cyan">
+          <ScanLine width={13} height={13} /> view full proof &amp; public inputs
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg border-white/10 bg-ink-900 text-fg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 tracking-tight">
+            <Cpu width={16} height={16} className="text-violet-soft" /> Groth16 proof
+          </DialogTitle>
+          <DialogDescription className="font-mono text-[11px] text-faint">
+            BN254 · proved in {minted.provingMs} ms, fully in-browser
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Section title="Proof (G1 · G2 · G1)">
+            <Mono label="a" value={minted.proofHex.a} />
+            <Mono label="b" value={minted.proofHex.b} />
+            <Mono label="c" value={minted.proofHex.c} />
+          </Section>
+          <Section title="Public inputs">
+            {inputs.map(([k, v]) => (
+              <Mono key={k} label={k} value={v} />
+            ))}
+          </Section>
+          <p className="rounded-lg border border-violet/15 bg-violet/[0.05] p-3 text-xs text-muted">
+            These four values + the proof are all that's sent on-chain. The owner key, balance, Merkle path and agent
+            secret stay on this device.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-ink-950/50 p-3.5">
+      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">{title}</div>
+      <div className="grid gap-1">{children}</div>
+    </div>
   );
 }
 
