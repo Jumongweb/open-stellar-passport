@@ -32,3 +32,8 @@ identity.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Demo video intermediates (keep docs/demo.mp4)
+docs/*.webm
+frontend/video-tmp/
+_vf_*.png

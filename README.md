@@ -8,6 +8,8 @@ Built for the [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stel
 
 > Live demo: real in-browser Groth16 proving → real on-chain verification → x402 payment gate. Run it with `cd frontend && npm install && npm run dev`.
 
+🎬 **[Watch the 1:40 demo video](docs/demo.mp4)** (captioned screencast of the live flow) · script & shot list in [docs/VIDEO.md](docs/VIDEO.md)
+
 ---
 
 ## The problem (it bleeds money *and* identity today)
