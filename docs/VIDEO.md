@@ -1,17 +1,27 @@
-# Demo video — script & shot list (~2:10)
+# Demo video (~2:02)
 
 Two renders exist:
 
-- **`docs/demo-narrated.mp4`** — captioned screencast **with an ElevenLabs
-  voiceover** (voice *Roger*), composed and rendered in Remotion (see
-  [`../video/`](../video/)). Swap `video/public/narration.mp3` for a different
-  voice and re-render.
-- **`docs/demo.mp4`** — the same screencast, **silent** (captions only).
+- **`docs/demo-narrated.mp4`** — the demo with an **ElevenLabs voiceover**
+  (voice *Roger*) and **captions transcribed from that voice** (whisper, then
+  spelling-fixed), all synced and composed in Remotion (see [`../video/`](../video/)).
+- **`docs/demo.mp4`** — the same, **silent** (captions only).
 
-The table below is the narration script (also used to generate the TTS).
+How it's built (all in [`../video/`](../video/)):
 
-Everything shown is **real**: the proof is generated in the browser and verified
-live against the deployed Soroban contract on testnet.
+1. `frontend/record-clean.mjs` records a clean screencast (no overlays) with the
+   app actions **timed to the voiceover beats**.
+2. `scripts/wsl-transcribe.sh` transcribes `narration.mp3` with whisper.cpp →
+   `video/src/captionData.ts` (text + ms timestamps; terms spelling-corrected).
+3. Remotion (`video/src/Composition.tsx`) overlays the synced captions + an end
+   card and renders against the voiceover.
+
+So the **captions match the spoken words exactly**, and each on-screen action
+lines up with what's being narrated. Everything shown is **real** — the proof is
+generated in the browser and verified live against the deployed Soroban contract.
+
+The transcript is in [`../video/src/captionData.ts`](../video/src/captionData.ts).
+The table below is the original shot list (kept for reference).
 
 ---
 
